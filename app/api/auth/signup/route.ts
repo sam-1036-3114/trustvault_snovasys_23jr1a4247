@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
       password: parsed.data.password,
-      options: { data: { display_name: parsed.data.display_name } },
+      options: { data: { display_name: parsed.data.display_name, role: parsed.data.role } },
     });
 
     if (error) {

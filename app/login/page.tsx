@@ -3,13 +3,21 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, Loader2 } from 'lucide-react';
+import { Shield, Loader2, User, FileText, Eye } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import type { UserRole } from '@/lib/types';
+
+const ROLE_OPTIONS: { value: UserRole; label: string; icon: typeof Shield; desc: string }[] = [
+  { value: 'admin', label: 'Administrator', icon: Shield, desc: 'Manage users, monitor security, investigate incidents' },
+  { value: 'owner', label: 'Document Owner', icon: FileText, desc: 'Upload, share, revoke, and audit owned documents' },
+  { value: 'viewer', label: 'Viewer', icon: Eye, desc: 'Read and download only authorised documents' },
+];
 
 function LoginForm() {
   const router = useRouter();
@@ -21,6 +29,7 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [role, setRole] = useState<UserRole>('viewer');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,13 +37,13 @@ function LoginForm() {
     setLoading(true);
 
     if (mode === 'signup') {
-      const { error } = await signUp(email, password, displayName);
+      const { error } = await signUp(email, password, displayName, role);
       if (error) {
         toast({ title: 'Sign Up Failed', description: error, variant: 'destructive' });
         setLoading(false);
         return;
       }
-      toast({ title: 'Account Created', description: 'Welcome to TrustVault' });
+      toast({ title: 'Account Created', description: `Welcome to TrustVault as ${role}` });
       router.push('/dashboard');
     } else {
       const { error } = await signIn(email, password);
@@ -61,17 +70,53 @@ function LoginForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'signup' && (
-              <div className="space-y-2">
-                <Label htmlFor="displayName">Display Name</Label>
-                <Input
-                  id="displayName"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  required
-                  minLength={1}
-                  placeholder="Jane Doe"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="displayName">Display Name</Label>
+                  <Input
+                    id="displayName"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    required
+                    minLength={1}
+                    placeholder="Jane Doe"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Select Role</Label>
+                  <div className="grid gap-2">
+                    {ROLE_OPTIONS.map((opt) => {
+                      const Icon = opt.icon;
+                      const selected = role === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setRole(opt.value)}
+                          className={cn(
+                            'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
+                            selected
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:bg-accent'
+                          )}
+                        >
+                          <div className={cn(
+                            'flex h-9 w-9 items-center justify-center rounded-md',
+                            selected ? 'bg-primary/10' : 'bg-muted'
+                          )}>
+                            <Icon className={cn('h-4 w-4', selected ? 'text-primary' : 'text-muted-foreground')} />
+                          </div>
+                          <div className="flex-1">
+                            <p className={cn('text-sm font-medium', selected && 'text-primary')}>{opt.label}</p>
+                            <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                          </div>
+                          {selected && <Shield className="mt-0.5 h-4 w-4 text-primary" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

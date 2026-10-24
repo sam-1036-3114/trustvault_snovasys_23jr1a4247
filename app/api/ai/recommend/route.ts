@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthenticatedUser, AuthError, canManageDocumentAccess } from '@/lib/auth';
-import { createServiceClient } from '@/lib/supabase-server';
+import { createClient } from '@/lib/supabase-server';
 import { getDocumentForAuthorisedCheck } from '@/lib/auth';
 import { logAuditEvent } from '@/lib/audit';
 import { headers } from 'next/headers';
@@ -33,9 +33,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only the owner can request recommendations' }, { status: 403 });
     }
 
-    const serviceClient = createServiceClient();
+    const client = createClient();
 
-    const { data: permissions } = await serviceClient
+    const { data: permissions } = await client
       .from('document_permissions')
       .select('user_id, access_level, granted')
       .eq('document_id', document_id)
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const editGrants = activeGrants.filter((p: any) => p.access_level === 'edit');
+    const editGrants = activeGrants.filter((p: { access_level: string }) => p.access_level === 'edit');
     if (editGrants.length > 3) {
       recommendations.push({
         type: 'excessive_edit',

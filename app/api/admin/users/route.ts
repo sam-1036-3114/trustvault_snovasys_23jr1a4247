@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdministrator, AuthError } from '@/lib/auth';
-import { createServiceClient } from '@/lib/supabase-server';
+import { createClient } from '@/lib/supabase-server';
 import { logAuditEvent } from '@/lib/audit';
+import type { Profile } from '@/lib/types';
 
 export async function GET() {
   try {
     await requireAdministrator();
-    const serviceClient = createServiceClient();
-    const { data } = await serviceClient
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const client = createClient();
+    const { data, error } = await client.rpc('list_all_users');
 
-    return NextResponse.json({ users: data || [] });
+    if (error) {
+      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    }
+
+    return NextResponse.json({ users: (data as Profile[]) || [] });
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ error: err.message }, { status: err.code === 'UNAUTHENTICATED' ? 401 : 403 });
@@ -43,15 +45,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'No valid updates' }, { status: 400 });
     }
 
-    const serviceClient = createServiceClient();
-    const { data, error } = await serviceClient
-      .from('profiles')
-      .update(updates as any)
-      .eq('id', user_id)
-      .select('*')
-      .maybeSingle();
+    const client = createClient();
+    const { data, error } = await client.rpc('update_user_role_status', {
+      p_target_user_id: user_id,
+      p_role: role || null,
+      p_status: status || null,
+    });
 
-    if (error || !data) {
+    if (error || !data || (data as Profile[]).length === 0) {
       return NextResponse.json({ error: 'Failed to update user' }, { status: 400 });
     }
 
@@ -63,7 +64,7 @@ export async function PATCH(req: NextRequest) {
       metadata: { changes: updates },
     });
 
-    return NextResponse.json({ user: data });
+    return NextResponse.json({ user: (data as Profile[])[0] });
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ error: err.message }, { status: err.code === 'UNAUTHENTICATED' ? 401 : 403 });

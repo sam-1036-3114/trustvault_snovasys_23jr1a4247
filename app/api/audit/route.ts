@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuthenticatedUser, requireAdministrator, AuthError } from '@/lib/auth';
-import { createServiceClient } from '@/lib/supabase-server';
+import { requireAuthenticatedUser, AuthError } from '@/lib/auth';
+import { createClient } from '@/lib/supabase-server';
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser();
-    const serviceClient = createServiceClient();
+    const client = createClient();
     const searchParams = req.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '50');
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const action = searchParams.get('action');
     const outcome = searchParams.get('outcome');
 
-    let query = serviceClient
+    let query = client
       .from('audit_events')
       .select('*', { count: 'exact' })
       .order('sequence_number', { ascending: false })

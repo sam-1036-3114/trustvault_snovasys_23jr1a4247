@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase-server';
+import { createClient } from '@/lib/supabase-server';
 import { logAuditEvent } from '@/lib/audit';
 import { requireAuthenticatedUser, canReadDocument, canEditDocument, canManageDocumentAccess, AuthError } from '@/lib/auth';
 import {
@@ -89,8 +89,8 @@ export async function uploadDocument(
   const storageKey = generateStorageKey(user.id, ext);
   const safeFilename = sanitizeFilename(file.name);
 
-  const serviceClient = createServiceClient();
-  const { error: uploadError } = await serviceClient.storage
+  const client = createClient();
+  const { error: uploadError } = await client.storage
     .from(STORAGE_BUCKET)
     .upload(storageKey, buffer, {
       contentType: file.type,
@@ -101,7 +101,7 @@ export async function uploadDocument(
     return { document: null, error: 'Failed to upload file to storage' };
   }
 
-  const { data: docData, error: docError } = await serviceClient
+  const { data: docData, error: docError } = await client
     .from('documents')
     .insert({
       owner_id: user.id,
@@ -119,13 +119,13 @@ export async function uploadDocument(
     .maybeSingle();
 
   if (docError || !docData) {
-    await serviceClient.storage.from(STORAGE_BUCKET).remove([storageKey]);
+    await client.storage.from(STORAGE_BUCKET).remove([storageKey]);
     return { document: null, error: 'Failed to create document record' };
   }
 
   const document = docData as Document;
 
-  await serviceClient.from('document_versions').insert({
+  await client.from('document_versions').insert({
     document_id: document.id,
     version_number: 1,
     file_name: safeFilename,
@@ -156,14 +156,14 @@ export async function listDocuments(params: {
   pageSize?: number;
 }): Promise<{ documents: (Document & { owner_email?: string; owner_name?: string; access_level?: string })[]; total: number }> {
   const user = await requireAuthenticatedUser();
-  const serviceClient = createServiceClient();
+  const client = createClient();
   const page = params.page || 1;
   const pageSize = params.pageSize || 20;
   const offset = (page - 1) * pageSize;
 
-  let query = serviceClient
+  let query = client
     .from('documents')
-    .select('*, document_permissions!inner(access_level, granted, user_id)', { count: 'exact' });
+    .select('*, document_permissions(access_level, granted, user_id)', { count: 'exact' });
 
   if (params.search) {
     query = query.or(`title.ilike.%${params.search}%,description.ilike.%${params.search}%`);
@@ -187,7 +187,7 @@ export async function listDocuments(params: {
         (p) => p.user_id === user.id && p.granted === true,
       );
       if (isOwner || perm || user.profile.role === 'admin') {
-        const { data: ownerProfile } = await serviceClient
+        const { data: ownerProfile } = await client
           .from('profiles')
           .select('email, display_name')
           .eq('id', d.owner_id)
@@ -213,9 +213,9 @@ export async function getDocumentDetail(documentId: string): Promise<{
   error: string | null;
 }> {
   const user = await requireAuthenticatedUser();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
-  const { data: doc } = await serviceClient
+  const { data: doc } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -241,9 +241,9 @@ export async function getDocumentDetail(documentId: string): Promise<{
   }
 
   const [ownerResult, permResult, versionResult] = await Promise.all([
-    serviceClient.from('profiles').select('*').eq('id', document.owner_id).maybeSingle(),
-    serviceClient.from('document_permissions').select('*').eq('document_id', documentId).eq('granted', true),
-    serviceClient.from('document_versions').select('*').eq('document_id', documentId).order('version_number', { ascending: false }),
+    client.from('profiles').select('*').eq('id', document.owner_id).maybeSingle(),
+    client.from('document_permissions').select('*').eq('document_id', documentId).eq('granted', true),
+    client.from('document_versions').select('*').eq('document_id', documentId).order('version_number', { ascending: false }),
   ]);
 
   const canManage = await canManageDocumentAccess(user.id, document);
@@ -275,9 +275,9 @@ export async function downloadDocument(documentId: string): Promise<{
 }> {
   const user = await requireAuthenticatedUser();
   const correlationId = getCorrelationId();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
-  const { data: doc } = await serviceClient
+  const { data: doc } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -302,7 +302,7 @@ export async function downloadDocument(documentId: string): Promise<{
     return { data: null, contentType: '', fileName: '', error: 'Access denied' };
   }
 
-  const { data: fileData, error: downloadError } = await serviceClient.storage
+  const { data: fileData, error: downloadError } = await client.storage
     .from(STORAGE_BUCKET)
     .download(document.storage_key);
 
@@ -331,14 +331,14 @@ export async function updateDocumentMetadata(
 ): Promise<{ document: Document | null; error: string | null }> {
   const user = await requireAuthenticatedUser();
   const correlationId = getCorrelationId();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
   const parsed = updateDocumentSchema.safeParse(updates);
   if (!parsed.success) {
     return { document: null, error: parsed.error.issues[0]?.message || 'Invalid input' };
   }
 
-  const { data: doc } = await serviceClient
+  const { data: doc } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -362,7 +362,7 @@ export async function updateDocumentMetadata(
     return { document: null, error: 'Access denied' };
   }
 
-  const { data: updated, error } = await serviceClient
+  const { data: updated, error } = await client
     .from('documents')
     .update(parsed.data)
     .eq('id', documentId)
@@ -388,9 +388,9 @@ export async function updateDocumentMetadata(
 export async function deleteDocument(documentId: string): Promise<{ error: string | null }> {
   const user = await requireAuthenticatedUser();
   const correlationId = getCorrelationId();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
-  const { data: doc } = await serviceClient
+  const { data: doc } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -414,9 +414,9 @@ export async function deleteDocument(documentId: string): Promise<{ error: strin
     return { error: 'Only the owner can delete this document' };
   }
 
-  await serviceClient.storage.from(STORAGE_BUCKET).remove([document.storage_key]);
+  await client.storage.from(STORAGE_BUCKET).remove([document.storage_key]);
 
-  const { error: deleteError } = await serviceClient
+  const { error: deleteError } = await client
     .from('documents')
     .delete()
     .eq('id', documentId);
@@ -444,14 +444,14 @@ export async function grantPermission(
 ): Promise<{ error: string | null }> {
   const user = await requireAuthenticatedUser();
   const correlationId = getCorrelationId();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
   const parsed = grantPermissionSchema.safeParse({ user_id: targetUserId, access_level: accessLevel });
   if (!parsed.success) {
     return { error: 'Invalid permission data' };
   }
 
-  const { data: doc } = await serviceClient
+  const { data: doc } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -480,7 +480,7 @@ export async function grantPermission(
     return { error: 'Cannot grant permission to yourself' };
   }
 
-  const { data: targetProfile } = await serviceClient
+  const { data: targetProfile } = await client
     .from('profiles')
     .select('status')
     .eq('id', targetUserId)
@@ -490,7 +490,7 @@ export async function grantPermission(
     return { error: 'Target user not found or inactive' };
   }
 
-  const { data: existing } = await serviceClient
+  const { data: existing } = await client
     .from('document_permissions')
     .select('id')
     .eq('document_id', documentId)
@@ -498,14 +498,14 @@ export async function grantPermission(
     .maybeSingle();
 
   if (existing) {
-    const { error } = await serviceClient
+    const { error } = await client
       .from('document_permissions')
       .update({ access_level: accessLevel, granted: true, granted_by: user.id })
       .eq('id', existing.id);
 
     if (error) return { error: 'Failed to update permission' };
   } else {
-    const { error } = await serviceClient
+    const { error } = await client
       .from('document_permissions')
       .insert({
         document_id: documentId,
@@ -537,9 +537,9 @@ export async function revokePermission(
 ): Promise<{ error: string | null }> {
   const user = await requireAuthenticatedUser();
   const correlationId = getCorrelationId();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
-  const { data: doc } = await serviceClient
+  const { data: doc } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -564,7 +564,7 @@ export async function revokePermission(
     return { error: 'Only the owner can manage permissions' };
   }
 
-  const { error } = await serviceClient
+  const { error } = await client
     .from('document_permissions')
     .update({ granted: false })
     .eq('document_id', documentId)
@@ -587,9 +587,9 @@ export async function revokePermission(
 
 export async function searchUsers(query: string): Promise<Profile[]> {
   const user = await requireAuthenticatedUser();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
-  const { data } = await serviceClient
+  const { data } = await client
     .from('profiles')
     .select('*')
     .eq('status', 'active')
@@ -605,9 +605,9 @@ export async function getDocumentPermissions(documentId: string): Promise<{
   error: string | null;
 }> {
   const user = await requireAuthenticatedUser();
-  const serviceClient = createServiceClient();
+  const client = createClient();
 
-  const { data: doc } = await serviceClient
+  const { data: doc } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)
@@ -623,7 +623,7 @@ export async function getDocumentPermissions(documentId: string): Promise<{
     return { permissions: [], error: 'Only the owner can view all permissions' };
   }
 
-  const { data: perms } = await serviceClient
+  const { data: perms } = await client
     .from('document_permissions')
     .select('*')
     .eq('document_id', documentId)
@@ -632,7 +632,7 @@ export async function getDocumentPermissions(documentId: string): Promise<{
   const result: (DocumentPermission & { user_email?: string; user_name?: string })[] = [];
   if (perms) {
     for (const perm of perms as DocumentPermission[]) {
-      const { data: profile } = await serviceClient
+      const { data: profile } = await client
         .from('profiles')
         .select('email, display_name')
         .eq('id', perm.user_id)

@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase-server';
+import { createClient } from '@/lib/supabase-server';
 import type { AuditOutcome } from '@/lib/types';
 
 interface AuditParams {
@@ -13,8 +13,8 @@ interface AuditParams {
 
 export async function logAuditEvent(params: AuditParams): Promise<string | null> {
   try {
-    const serviceClient = createServiceClient();
-    const { data, error } = await serviceClient.rpc('insert_audit_event', {
+    const client = createClient();
+    const { data, error } = await client.rpc('insert_audit_event', {
       p_actor_id: params.actor_id ?? null,
       p_action: params.action,
       p_document_id: params.document_id ?? null,
@@ -37,8 +37,8 @@ export async function logAuditEvent(params: AuditParams): Promise<string | null>
 }
 
 export async function verifyAuditIntegrity() {
-  const serviceClient = createServiceClient();
-  const { data, error } = await serviceClient.rpc('verify_audit_chain', {
+  const client = createClient();
+  const { data, error } = await client.rpc('verify_audit_chain', {
     p_chain_id: 'main',
   });
   if (error) throw error;

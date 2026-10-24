@@ -38,6 +38,7 @@ export const signUpSchema = z.object({
   email: z.string().email('Valid email required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   display_name: z.string().min(1, 'Display name required').max(100),
+  role: z.enum(['admin', 'owner', 'viewer']).default('viewer'),
 });
 
 export const signInSchema = z.object({
