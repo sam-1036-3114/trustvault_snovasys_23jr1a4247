@@ -1,4 +1,4 @@
-import { createClient, createServiceClient } from '@/lib/supabase-server';
+import { createClient } from '@/lib/supabase-server';
 import type { AuthUser, UserRole, DocumentOperation, Document, Profile } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 import { headers } from 'next/headers';
@@ -70,8 +70,8 @@ export async function canReadDocument(userId: string, document: Document): Promi
   if (document.owner_id === userId) return true;
   if (document.status === 'deleted') return false;
 
-  const serviceClient = createServiceClient();
-  const { data } = await serviceClient
+  const client = createClient();
+  const { data } = await client
     .from('document_permissions')
     .select('granted')
     .eq('document_id', document.id)
@@ -86,8 +86,8 @@ export async function canEditDocument(userId: string, document: Document): Promi
   if (document.owner_id === userId) return true;
   if (document.status === 'deleted') return false;
 
-  const serviceClient = createServiceClient();
-  const { data } = await serviceClient
+  const client = createClient();
+  const { data } = await client
     .from('document_permissions')
     .select('access_level, granted')
     .eq('document_id', document.id)
@@ -153,8 +153,8 @@ export async function authoriseDocumentOperation(
 export async function getDocumentForAuthorisedCheck(
   documentId: string,
 ): Promise<Document | null> {
-  const serviceClient = createServiceClient();
-  const { data } = await serviceClient
+  const client = createClient();
+  const { data } = await client
     .from('documents')
     .select('*')
     .eq('id', documentId)

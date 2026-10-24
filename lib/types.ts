@@ -175,6 +175,18 @@ export interface Database {
         Args: { p_chain_id?: string };
         Returns: AuditChainVerification;
       };
+      list_all_users: {
+        Args: Record<string, never>;
+        Returns: Profile[];
+      };
+      update_user_role_status: {
+        Args: {
+          p_target_user_id: string;
+          p_role?: string | null;
+          p_status?: string | null;
+        };
+        Returns: Profile[];
+      };
     };
   };
 }

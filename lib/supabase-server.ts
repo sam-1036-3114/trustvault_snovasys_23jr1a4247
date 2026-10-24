@@ -23,12 +23,15 @@ export function createClient() {
 }
 
 export function createServiceClient() {
-  return createSupabaseClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  if (supabaseServiceKey) {
+    return createSupabaseClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+  }
+  return createClient();
 }
 
 export function getSupabaseConfig() {
