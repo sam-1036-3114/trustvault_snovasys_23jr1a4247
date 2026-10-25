@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 
 export default function DashboardPage() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, error: authError } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<{
     totalDocuments: number;
@@ -46,10 +46,34 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  if (loading || !user || !profile) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Skeleton className="h-12 w-12 rounded-full" />
+      </div>
+    );
+  }
+
+  if (!user || !profile) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Unable to load your account</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {authError || 'Your account details are unavailable right now.'}
+            </p>
+            <button
+              type="button"
+              className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              onClick={() => router.push('/login')}
+            >
+              Return to sign in
+            </button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
